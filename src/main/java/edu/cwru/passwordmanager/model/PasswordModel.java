@@ -50,10 +50,7 @@ public class PasswordModel {
         // Generate random salt
         passwordFileSalt = generateRandomSalt();
 
-        KeySpec spec = new PBEKeySpec(password.toCharArray(), passwordFileSalt, 600000, 256);
-        SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
-        SecretKey privateKey = factory.generateSecret(spec);
-        byte [] encoded = privateKey.getEncoded();
+        byte [] encoded = generateKeyFromPassword(password, passwordFileSalt);
 
         Cipher cipher = Cipher.getInstance("AES");
         SecretKeySpec key = new SecretKeySpec(encoded, "AES");
@@ -62,7 +59,7 @@ public class PasswordModel {
         byte [] encryptedData = cipher.doFinal(verifyString.getBytes());
 
         String encryptedToken = new String(Base64.getEncoder().encode(encryptedData));
-        System.out.println(encryptedToken);
+        System.out.println("Generated token: " + encryptedToken);
 
         BufferedWriter bf = new BufferedWriter(new FileWriter(passwordFile));
         bf.write(Base64.getEncoder().encodeToString(passwordFileSalt) + separator + encryptedToken);
@@ -77,35 +74,31 @@ public class PasswordModel {
             firstLine = scn.nextLine();
         }
         catch (FileNotFoundException e){
-            System.out.println("Could not open passwords.txt");
+            System.out.println("Error: Could not read file passwords.txt");
         }
 
         int tabIndex = firstLine.indexOf(separator);
         if (tabIndex == -1) {
-            System.out.println("Error: Invalid password file format.");
+            System.out.println("Error: Invalid password file format");
             return false;
         }
 
         String salt = firstLine.substring(0, tabIndex);
         String encryptedToken = firstLine.substring(tabIndex + 1, firstLine.length());
-        System.out.println("File read. Salt: " + salt + ", token: " + encryptedToken);
+        System.out.println("File read.\nSalt: " + salt + "\nToken: " + encryptedToken);
 
-        byte[] saltBytes;
-        saltBytes = Base64.getDecoder().decode(salt);
+        byte[] saltBytes = Base64.getDecoder().decode(salt);
 
         byte[] encoded;
         try {
-            KeySpec spec = new PBEKeySpec(password.toCharArray(), saltBytes, 600000, 256);
-            SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
-            SecretKey privateKey = factory.generateSecret(spec);
-            encoded = privateKey.getEncoded();
+            encoded = generateKeyFromPassword(passwordFilePassword, saltBytes);
         }
         catch (NoSuchAlgorithmException e) {
-            System.out.println("error");
+            System.out.println("Error: Algorithm not found");
             return false;
         }
         catch (InvalidKeySpecException f){
-            System.out.println("error");
+            System.out.println("Error: Invalid key spec");
             return false;
         }
 
@@ -116,11 +109,11 @@ public class PasswordModel {
             key = new SecretKeySpec(encoded, "AES");
         }
         catch (NoSuchAlgorithmException e){
-            System.out.println("Error");
+            System.out.println("Error: Algorithm not found");
             return false;
         }
         catch (NoSuchPaddingException f){
-            System.out.println("Error");
+            System.out.println("Error: No such padding found");
             return false;
         }
 
@@ -129,7 +122,7 @@ public class PasswordModel {
             cipher.init(Cipher.DECRYPT_MODE, key);
         }
         catch (InvalidKeyException e){
-            System.out.println("Error");
+            System.out.println("Error: Invalid key");
             return false;
         }
         byte [] decodedData = Base64.getDecoder().decode(encryptedToken);
@@ -138,22 +131,19 @@ public class PasswordModel {
             decryptedData = cipher.doFinal(decodedData);
         }
         catch (IllegalBlockSizeException e){
-            System.out.println("error");
+            System.out.println("Error: Illegal block size");
             return false;
         }
         catch (BadPaddingException e){
-            System.out.println("Error");
+            System.out.println("Error: Bad padding");
             return false;
         }
         String token = new String(decryptedData);
-        System.out.println(token);
+        System.out.println("Decrypted token: " + token);
 
         if (token.equals(verifyString)){
             return true;
         }
-
-        // TODO: Check first line and use salt to verify that you can decrypt the token using the password from the user
-        // TODO: TIP !!! If you get an exception trying to decrypt, that also means they have the wrong passcode, return false!
 
         return false;
     }
@@ -183,7 +173,7 @@ public class PasswordModel {
     // TODO: Tip: Break down each piece into individual methods, for example: generateSalt(), encryptPassword, generateKey(), saveFile, etc ...
     // TODO: Use these functions above, and it will make it easier! Once you know encryption, decryption, etc works, you just need to tie them in
 
-    public static byte[] generateRandomSalt() {
+    static public byte[] generateRandomSalt() {
         // String salt = Base64.getEncoder().encodeToString("MsSmith".getBytes());
         SecureRandom random = new SecureRandom();
         byte[] salt = new byte[16];
@@ -191,5 +181,13 @@ public class PasswordModel {
 
         System.out.println("Generated salt: " + Base64.getEncoder().encodeToString(salt));
         return salt;
+    }
+
+    // Generate a key from a password using PBKDF2
+    static private byte[] generateKeyFromPassword(String password, byte[] salt) throws NoSuchAlgorithmException, InvalidKeySpecException {
+        KeySpec spec = new PBEKeySpec(password.toCharArray(), salt, 600000, 256);
+        SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+        SecretKey privateKey = factory.generateSecret(spec);
+        return privateKey.getEncoded();
     }
 }
