@@ -168,6 +168,15 @@ public class PasswordModel {
         passwords.add(password);
 
         // TODO: Add the new password to the file
+        try {
+            BufferedWriter bf = new BufferedWriter(new FileWriter(passwordFile, true));     // input true to FileWriter for append mode
+            bf.append("\n" + password.getLabel() + separator + password.getPassword());
+            bf.close();
+        }
+        catch (IOException e) {
+            System.out.println("Error: Could not open passwords.txt");
+            return;
+        }
     }
 
     // TODO: Tip: Break down each piece into individual methods, for example: generateSalt(), encryptPassword, generateKey(), saveFile, etc ...
