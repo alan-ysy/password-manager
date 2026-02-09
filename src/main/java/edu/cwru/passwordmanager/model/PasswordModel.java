@@ -13,6 +13,7 @@ import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.KeySpec;
 import java.util.Base64;
+import java.util.Scanner;
 
 
 public class PasswordModel {
@@ -68,14 +69,83 @@ public class PasswordModel {
         BufferedWriter bf = new BufferedWriter(new FileWriter(passwordFile));
         bf.write(salt + "\t" + encryptedToken);
         bf.close();
-
-
-
-
     }
 
     static public boolean verifyPassword(String password) {
         passwordFilePassword = password; // DO NOT CHANGE
+        String firstLine = "";
+
+
+
+        try (Scanner scn = new Scanner(passwordFile)){
+            firstLine = scn.nextLine();
+        }
+        catch (FileNotFoundException e){
+            System.out.println("Could not open passwords.txt");
+        }
+
+        int tabIndex = firstLine.indexOf('\t');
+        String salt = firstLine.substring(0,tabIndex);
+        String encryptedToken = firstLine.substring(tabIndex + 1, firstLine.length());
+
+        byte[] encoded;
+        try {
+            KeySpec spec = new PBEKeySpec(password.toCharArray(), salt.getBytes(), 600000, 256);
+            SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+            SecretKey privateKey = factory.generateSecret(spec);
+            encoded = privateKey.getEncoded();
+        }
+        catch (NoSuchAlgorithmException e) {
+            System.out.println("error");
+            return false;
+        }
+        catch (InvalidKeySpecException f){
+            System.out.println("error");
+            return false;
+        }
+
+        Cipher cipher;
+        SecretKeySpec key;
+        try{
+            cipher = Cipher.getInstance("AES");
+            key = new SecretKeySpec(encoded, "AES");
+        }
+        catch (NoSuchAlgorithmException e){
+            System.out.println("Error");
+            return false;
+        }
+        catch (NoSuchPaddingException f){
+            System.out.println("Error");
+            return false;
+        }
+
+        //Decryption
+        try{
+            cipher.init(Cipher.DECRYPT_MODE, key);
+        }
+        catch (InvalidKeyException e){
+            System.out.println("Error");
+            return false;
+        }
+        byte [] decodedData = Base64.getDecoder().decode(encryptedToken);
+        byte [] decryptedData;
+        try{
+            decryptedData = cipher.doFinal(decodedData);
+        }
+        catch (IllegalBlockSizeException e){
+            System.out.println("error");
+            return false;
+        }
+        catch (BadPaddingException e){
+            System.out.println("Error");
+            return false;
+        }
+        String token = new String(decryptedData);
+        System.out.println(token);
+
+        if (token.equals(verifyString)){
+            return true;
+        }
 
         // TODO: Check first line and use salt to verify that you can decrypt the token using the password from the user
         // TODO: TIP !!! If you get an exception trying to decrypt, that also means they have the wrong passcode, return false!
