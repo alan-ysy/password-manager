@@ -30,17 +30,73 @@ public class PasswordModel {
 
     private static String verifyString = "cookies";
 
-    private void loadPasswords() {
-        // TODO: Replace with loading passwords from file, you will want to add them to the passwords list defined above
-        // TODO: Tips: Use buffered reader, make sure you split on separator, make sure you decrypt password
-    }
-
     public PasswordModel() {
         loadPasswords();
     }
 
     static public boolean passwordFileExists() {
         return passwordFile.exists();
+    }
+
+    private void loadPasswords() {
+        if (!passwordFile.exists()) {
+            return;
+        }
+
+        try (BufferedReader br = new BufferedReader(new FileReader(passwordFile))) {
+            // Read first line that has salt and token
+            String firstLine = br.readLine();
+            if (firstLine == null) {
+                return;
+            }
+
+            int tabIndex = firstLine.indexOf(separator);
+            if (tabIndex == -1) {
+                System.out.println("Error: Invalid password file format");
+                return;
+            }
+
+            String saltString = firstLine.substring(0, tabIndex);
+            // Save salt bytes
+            passwordFileSalt = Base64.getDecoder().decode(saltString);
+
+            // Generate key from provided master password
+            try {
+                passwordFileKey = generateKeyFromPassword(passwordFilePassword, passwordFileSalt);
+            } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
+                System.out.println("Error generating key from password: " + e.getMessage());
+                return;
+            }
+
+            // Read remaining lines
+            String line;
+            while ((line = br.readLine()) != null) {
+                if (line.trim().isEmpty()) continue;
+
+                String[] parts = line.split(separator, 2);
+                String label = parts.length > 0 ? parts[0] : "";
+                String password = parts.length > 1 ? parts[1] : "";
+
+                String decrypted = password;
+
+                // Decrypt
+                try {
+                    Cipher cipher = Cipher.getInstance("AES");
+                    SecretKeySpec key = new SecretKeySpec(passwordFileKey, "AES");
+                    cipher.init(Cipher.DECRYPT_MODE, key);
+                    byte[] decoded = Base64.getDecoder().decode(password);
+                    byte[] plain = cipher.doFinal(decoded);
+                    decrypted = new String(plain);
+                } catch (Exception e) {
+                    System.out.println("Error: Could not decrypt password");
+                }
+
+                passwords.add(new Password(label, decrypted));
+            }
+
+        } catch (IOException e) {
+            System.out.println("Error loading passwords.txt: " + e.getMessage());
+        }
     }
 
     // If no passwords.txt file, sse password to create token and save in file with salt
