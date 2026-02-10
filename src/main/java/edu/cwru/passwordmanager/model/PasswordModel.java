@@ -155,12 +155,6 @@ public class PasswordModel {
     public void deletePassword(int index) {
         passwords.remove(index);
 
-        // TODO: Remove it from file
-    }
-
-    public void updatePassword(Password password, int index) {
-        passwords.set(index, password);
-        System.out.println("Updated: " + password.toString() + ", index: " + index);
         // Use a temporary file to make changes
         File tmpFile = new File("tmp.txt");
 
@@ -173,13 +167,55 @@ public class PasswordModel {
                 bw.write(firstLine);
             }
 
-            // Update line by line;
+            // Update line by line
+            String line;
+            int current = 0;
+            while ((line = br.readLine()) != null) {
+                if (current != index) {
+                    bw.newLine();
+                    bw.write(line);
+                }
+                current++;
+            }
+        } catch (IOException e) {
+            System.out.println("Error updating passwords.txt");
+            return;
+        }
+
+        // Replace original file with tmp file
+        if (!passwordFile.delete()) {
+            System.out.println("Error: Could not delete original passwords.txt");
+            return;
+        }
+        if (!tmpFile.renameTo(passwordFile)) {
+            System.out.println("Error: Could not rename tmp.txt to passwords.txt");
+            return;
+        }
+    }
+
+    public void updatePassword(Password password, int index) {
+        passwords.set(index, password);
+        System.out.println("Updated: " + password.toString() + ", index: " + index);
+
+        // Use a temporary file to make changes
+        File tmpFile = new File("tmp.txt");
+
+        try (BufferedReader br = new BufferedReader(new FileReader(passwordFile));
+             BufferedWriter bw = new BufferedWriter(new FileWriter(tmpFile))) {
+
+            // First line is always salt and token, so copy as is
+            String firstLine = br.readLine();
+            if (firstLine != null) {
+                bw.write(firstLine);
+            }
+
+            // Update line by line
             String line;
             int current = 0;
             while ((line = br.readLine()) != null) {
                 bw.newLine();
                 if (current == index) {
-                    bw.write(password.getLabel() + separator + password.getPassword());
+                    bw.write(password.getLabel() + separator + encrypt(password.getPassword()));
                 } else {
                     bw.write(line);
                 }
@@ -203,15 +239,12 @@ public class PasswordModel {
 
     public void addPassword(Password password) {
         passwords.add(password);
-        System.out.println(passwords);
+        System.out.println("Added: " + passwords.getLast().getLabel());
 
         // Add new password to passwords.txt
         try {
             BufferedWriter bf = new BufferedWriter(new FileWriter(passwordFile, true));     // input true to FileWriter for append mode
             bf.append("\n" + passwords.getLast().getLabel() + separator + password.getPassword());
-            //add encrypted password
-            System.out.println("Encrypt: " + encrypt("test"));
-
             bf.close();
         }
         catch (IOException e) {
