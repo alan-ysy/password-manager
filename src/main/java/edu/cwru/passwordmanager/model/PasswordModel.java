@@ -51,6 +51,7 @@ public class PasswordModel {
         passwordFileSalt = generateRandomSalt();
 
         byte [] encoded = generateKeyFromPassword(password, passwordFileSalt);
+        passwordFileKey = encoded;
 
         Cipher cipher = Cipher.getInstance("AES");
         SecretKeySpec key = new SecretKeySpec(encoded, "AES");
@@ -169,12 +170,12 @@ public class PasswordModel {
 
         // TODO: Add the new password to the file
         try {
+            BufferedWriter bf = new BufferedWriter(new FileWriter(passwordFile, true));     // input true to FileWriter for append mode
+            bf.append("\n" + passwords.getLast().getLabel() + separator + password.getPassword());
+            //add encrypted password
+            System.out.println("Encrypt: " + encrypt(passwordFileKey, passwordFileSalt, "test"));
 
-                BufferedWriter bf = new BufferedWriter(new FileWriter(passwordFile, true));     // input true to FileWriter for append mode
-                bf.append("\n" + passwords.getLast().getLabel() + separator + password.getPassword());
-                //add encrypted password
-
-                bf.close();
+            bf.close();
 
         }
         catch (IOException e) {
@@ -205,5 +206,40 @@ public class PasswordModel {
         return privateKey.getEncoded();
     }
 
+    static public String encrypt(byte[] keyString, byte[] salt, String message){
+        KeySpec spec = new PBEKeySpec(keyString.toString().toCharArray(), salt, 600000, 256);
+        try{
+            SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+            SecretKey privateKey = factory.generateSecret(spec);
+            byte [] encoded = privateKey.getEncoded();
+            Cipher cipher = Cipher.getInstance("AES");
+            SecretKeySpec key = new SecretKeySpec(encoded, "AES");
+            cipher.init(Cipher.ENCRYPT_MODE, key);
+            byte [] encryptedData = cipher.doFinal(message.getBytes());
+            String messageString = new String(Base64.getEncoder().encode(encryptedData));
+            return messageString;
+        }
+        catch (NoSuchAlgorithmException e){
+            return null;
+        }
+        catch (InvalidKeySpecException e){
+            return null;
+        }
+        catch (NoSuchPaddingException e){
+            return null;
+        }
+        catch (InvalidKeyException e){
+            return null;
+        }
+        catch (IllegalBlockSizeException e){
+            return null;
+        }
+        catch (BadPaddingException e){
+            return null;
+        }
 
+
+
+
+    }
 }
